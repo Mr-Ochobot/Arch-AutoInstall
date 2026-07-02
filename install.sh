@@ -31,9 +31,7 @@ USER_PASS=""
 
 print_success() {
     echo -e "${GREEN}${CHECKMARK}${NC} $1"
-}# ============================================
-# DISPLAY FUNCTIONS
-# ============================================
+}
 
 print_process() {
     echo -e "${BLUE}${PROCESS}${NC} $1"
