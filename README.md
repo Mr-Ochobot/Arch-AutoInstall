@@ -196,15 +196,6 @@ Always verify the selected target disk before continuing.
 ├── README.md
 └── LICENSE
 ```
-
----
-
-## License
-
-This project is distributed under the MIT License.
-
-See the LICENSE file for complete details.
-
 ---
 
 ## Contributing
