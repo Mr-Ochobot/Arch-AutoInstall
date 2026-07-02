@@ -123,7 +123,7 @@ During system configuration it also installs:
 Clone the repository:
 
 ```bash
-git clone https://github.com/username/auto-arch-installer.git
+git clone https://github.com/Mr-Ochobot/Arch-AutoInstall.git
 ```
 
 Enter the project directory:
