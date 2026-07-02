@@ -129,7 +129,7 @@ git clone https://github.com/Mr-Ochobot/Arch-AutoInstall.git
 Enter the project directory:
 
 ```bash
-cd auto-arch-installer
+cd Arch-AutoInstall
 ```
 
 Make the script executable:
