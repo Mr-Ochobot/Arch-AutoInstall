@@ -6,7 +6,7 @@ CROSS="[✗]"
 ARROW="[→]"
 INFO="[i]"
 
-# Display colors
+# Colors for display
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 WHITE='\033[1;37m'
-NC='\033[0m' 
+NC='\033[0m'
 
 # Global variables
 DISK=""
@@ -25,10 +25,15 @@ HAS_SWAP=""
 ZONE=""
 HOSTNAME=""
 SWAP_SIZE=""
+USERNAME=""
+ROOT_PASS=""
+USER_PASS=""
 
 print_success() {
     echo -e "${GREEN}${CHECKMARK}${NC} $1"
-}
+}# ============================================
+# DISPLAY FUNCTIONS
+# ============================================
 
 print_process() {
     echo -e "${BLUE}${PROCESS}${NC} $1"
@@ -64,6 +69,36 @@ print_header() {
     echo ""
     echo -e "${WHITE}[+] AUTO ARCH LINUX INSTALLER v2.0${NC}"
     echo ""
+}
+
+get_password() {
+    local prompt="$1"
+    local password=""
+    local confirm=""
+    
+    while true; do
+        echo -e "${YELLOW}${ARROW}${NC} $prompt"
+        read -s -p "> " password
+        echo ""
+        
+        if [ -z "$password" ]; then
+            print_error "Password cannot be empty!"
+            continue
+        fi
+        
+        echo -e "${YELLOW}${ARROW}${NC} Confirm password:"
+        read -s -p "> " confirm
+        echo ""
+        
+        if [ "$password" != "$confirm" ]; then
+            print_error "Passwords do not match! Please try again."
+            continue
+        fi
+        
+        break
+    done
+    
+    echo "$password"
 }
 
 select_timezone() {
@@ -232,6 +267,51 @@ input_hostname() {
     export HOSTNAME
     echo ""
     read -p "Press Enter to continue..."
+}
+
+input_user_info() {
+    print_step "CREATE USER ACCOUNT"
+    echo ""
+    print_info "Enter username for your account"
+    print_info "Examples: john, archuser, myname"
+    echo ""
+    print_arrow "Username: "
+    read -p "> " USERNAME_INPUT
+    
+    if [ -z "$USERNAME_INPUT" ]; then
+        USERNAME="archuser"
+        print_info "Using default: archuser"
+    else
+        if [[ "$USERNAME_INPUT" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+            USERNAME="$USERNAME_INPUT"
+            print_success "Username: $USERNAME"
+        else
+            print_error "Invalid username! Use lowercase letters, numbers, underscore, or hyphen"
+            print_info "Using default: archuser"
+            USERNAME="archuser"
+        fi
+    fi
+    
+    export USERNAME
+    echo ""
+}
+
+input_passwords() {
+    print_step "SET PASSWORDS"
+    echo ""
+    print_info "Enter password for ROOT user"
+    ROOT_PASS=$(get_password "Enter root password:")
+    print_success "Root password set successfully!"
+    echo ""
+    
+    print_info "Enter password for user: $USERNAME"
+    USER_PASS=$(get_password "Enter password for $USERNAME:")
+    print_success "User password set successfully!"
+    echo ""
+    
+    read -p "Press Enter to continue..."
+    
+    export ROOT_PASS USER_PASS
 }
 
 show_disks() {
@@ -517,6 +597,7 @@ install_base() {
     read -p "Press Enter to continue..."
 }
 
+
 generate_fstab() {
     print_step "GENERATING FSTAB"
     
@@ -537,11 +618,13 @@ generate_fstab() {
     read -p "Press Enter to continue..."
 }
 
+
 configure_chroot() {
     print_step "CONFIGURING INSIDE CHROOT"
     
-    cat > /mnt/root/auto_config.sh << 'EOF'
+    cat > /mnt/root/auto_config.sh << EOF
 #!/bin/bash
+
 
 CHECKMARK="[+]"
 PROCESS="[*]"
@@ -558,121 +641,34 @@ WHITE='\033[1;37m'
 NC='\033[0m'
 
 print_success() {
-    echo -e "${GREEN}${CHECKMARK}${NC} $1"
+    echo -e "\${GREEN}\${CHECKMARK}\${NC} \$1"
 }
 
 print_process() {
-    echo -e "${BLUE}${PROCESS}${NC} $1"
+    echo -e "\${BLUE}\${PROCESS}\${NC} \$1"
 }
 
 print_error() {
-    echo -e "${RED}${CROSS}${NC} $1"
+    echo -e "\${RED}\${CROSS}\${NC} \$1"
 }
 
 print_info() {
-    echo -e "${CYAN}${INFO}${NC} $1"
-}
-
-print_arrow() {
-    echo -e "${YELLOW}${ARROW}${NC} $1"
+    echo -e "\${CYAN}\${INFO}\${NC} \$1"
 }
 
 print_step() {
     echo ""
-    echo -e "${WHITE}${CHECKMARK} $1${NC}"
+    echo -e "\${WHITE}\${CHECKMARK} \$1\${NC}"
     echo ""
 }
 
 print_step "SET TIMEZONE"
 
-select_timezone() {
-    print_step "SELECT TIMEZONE"
-    
-    regions=()
-    i=1
-    for region in $(ls /usr/share/zoneinfo/ | grep -v "right\|posix\|zone.tab\|zone1970.tab" | sort); do
-        if [ -d "/usr/share/zoneinfo/$region" ]; then
-            printf "  %3d) %s\n" $i "$region"
-            regions+=("$region")
-            ((i++))
-        fi
-    done
-    
-    echo ""
-    print_arrow "Select region number [1-${#regions[@]}]: "
-    read -p "> " region_choice
-    
-    if [[ ! "$region_choice" =~ ^[0-9]+$ ]] || [ "$region_choice" -lt 1 ] || [ "$region_choice" -gt "${#regions[@]}" ]; then
-        print_error "Invalid selection!"
-        return 1
-    fi
-    
-    REGION="${regions[$((region_choice-1))]}"
-    print_success "Region selected: $REGION"
-    echo ""
-    sleep 1
-    
-    clear
-    print_step "SELECT CITY / TIMEZONE"
-    print_info "Region: $REGION"
-    echo ""
-    
-    cities=()
-    i=1
-    for city in $(ls /usr/share/zoneinfo/$REGION/ | sort); do
-        if [ -f "/usr/share/zoneinfo/$REGION/$city" ]; then
-            printf "  %3d) %s\n" $i "$city"
-            cities+=("$city")
-            ((i++))
-        fi
-    done
-    
-    echo ""
-    print_arrow "Select city number [1-${#cities[@]}]: "
-    read -p "> " city_choice
-    
-    if [[ ! "$city_choice" =~ ^[0-9]+$ ]] || [ "$city_choice" -lt 1 ] || [ "$city_choice" -gt "${#cities[@]}" ]; then
-        print_error "Invalid selection!"
-        return 1
-    fi
-    
-    ZONE="$REGION/${cities[$((city_choice-1))]}"
-    print_success "Timezone selected: $ZONE"
-    echo ""
-    
-    export ZONE
-    return 0
-}
-
-echo ""
-print_arrow "Select timezone method:"
-echo "  [1] Select from list (Region -> City)"
-echo "  [2] Manual input"
-echo ""
-read -p "Choice [1-2]: " tz_method
-
-if [ "$tz_method" = "1" ]; then
-    select_timezone
-    if [ $? -ne 0 ]; then
-        print_info "Using default: Asia/Jakarta"
-        ZONE="Asia/Jakarta"
-    fi
-else
-    print_arrow "Enter timezone (e.g., Asia/Jakarta): "
-    read -p "> " ZONE
-    if [ ! -f "/usr/share/zoneinfo/$ZONE" ]; then
-        print_info "Invalid timezone! Using default: Asia/Jakarta"
-        ZONE="Asia/Jakarta"
-    fi
-fi
-
-print_process "Setting timezone to: $ZONE"
-if ln -sf /usr/share/zoneinfo/$ZONE /etc/localtime && hwclock --systohc; then
-    print_success "Timezone set successfully!"
-else
-    print_error "Failed to set timezone"
-    exit 1
-fi
+ZONE="$ZONE"
+print_process "Setting timezone to: \$ZONE"
+ln -sf /usr/share/zoneinfo/\$ZONE /etc/localtime
+hwclock --systohc
+print_success "Timezone set successfully!"
 
 print_step "SET LOCALE"
 
@@ -682,136 +678,72 @@ en_US.UTF-8 UTF-8
 id_ID.UTF-8 UTF-8
 LOCALE_EOF
 
-if locale-gen; then
-    print_success "Locale generated successfully"
-else
-    print_error "Failed to generate locale"
-    exit 1
-fi
-
+locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 print_success "Locale configured successfully!"
 
 print_step "SET HOSTNAME"
 
-HOSTNAME="${HOSTNAME}"
-
-echo "$HOSTNAME" > /etc/hostname
-print_success "Hostname: $HOSTNAME"
+HOSTNAME="$HOSTNAME"
+echo "\$HOSTNAME" > /etc/hostname
+print_success "Hostname: \$HOSTNAME"
 
 print_step "SET HOSTS"
 
 cat > /etc/hosts << HOSTS_EOF
 127.0.0.1   localhost
 ::1         localhost
-127.0.1.1   $HOSTNAME.localdomain  $HOSTNAME
+127.0.1.1   \$HOSTNAME.localdomain  \$HOSTNAME
 HOSTS_EOF
 
-print_success "Hosts configured successfully with hostname: $HOSTNAME"
-print_info "Contents of /etc/hosts:"
-echo -e "${YELLOW}"
-cat /etc/hosts
-echo -e "${NC}"
+print_success "Hosts configured successfully!"
 
 print_step "SET ROOT PASSWORD"
-print_info "Enter password for root:"
-passwd
 
-if [ $? -eq 0 ]; then
-    print_success "Root password set successfully!"
-else
-    print_error "Failed to set root password"
-    exit 1
-fi
+ROOT_PASS="$ROOT_PASS"
+echo "root:\$ROOT_PASS" | chpasswd
+print_success "Root password set successfully!"
 
 print_step "CREATE NEW USER"
 
-print_arrow "Enter new username: "
-read -p "> " USERNAME
-if [ -z "$USERNAME" ]; then
-    USERNAME="archuser"
-    print_info "Using default: archuser"
-fi
+USERNAME="$USERNAME"
+print_process "Creating user: \$USERNAME"
 
-if useradd -m -G wheel -s /bin/bash $USERNAME; then
-    print_success "User $USERNAME created successfully!"
-else
-    print_error "Failed to create user"
-    exit 1
-fi
+useradd -m -G wheel -s /bin/bash \$USERNAME
+print_success "User \$USERNAME created successfully!"
 
-print_info "Enter password for user $USERNAME:"
-passwd $USERNAME
-
-if [ $? -eq 0 ]; then
-    print_success "User password set successfully!"
-else
-    print_error "Failed to set user password"
-    exit 1
-fi
+USER_PASS="$USER_PASS"
+echo "\$USERNAME:\$USER_PASS" | chpasswd
+print_success "User password set successfully!"
 
 print_step "SETUP SUDO"
 
-print_process "Enabling wheel group in sudoers..."
 echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/wheel
-
-if [ $? -eq 0 ]; then
-    print_success "Wheel group enabled in sudoers!"
-else
-    print_error "Failed to enable wheel group"
-    exit 1
-fi
+print_success "Wheel group enabled in sudoers!"
 
 print_step "INSTALL BOOTLOADER GRUB"
 
-print_process "Installing GRUB and efibootmgr..."
-if pacman -S --noconfirm grub efibootmgr; then
-    print_success "GRUB and efibootmgr installed successfully"
-else
-    print_error "Failed to install GRUB"
-    exit 1
+pacman -S --noconfirm grub efibootmgr
+
+DISK=\$(lsblk -npo TYPE,NAME | grep -E "disk.*\$(df /boot | tail -1 | awk '{print \$1}' | sed 's|/dev/||' | sed 's|p[0-9]*\$||' | sed 's|[0-9]*\$||')" | awk '{print \$2}')
+
+if [ -z "\$DISK" ]; then
+    DISK=\$(lsblk -npo TYPE,NAME | grep -E "disk.*\$(df / | tail -1 | awk '{print \$1}' | sed 's|/dev/||' | sed 's|p[0-9]*\$||' | sed 's|[0-9]*\$||')" | awk '{print \$2}')
 fi
 
-DISK=$(lsblk -npo TYPE,NAME | grep -E "disk.*$(df /boot | tail -1 | awk '{print $1}' | sed 's|/dev/||' | sed 's|p[0-9]*$||' | sed 's|[0-9]*$||')" | awk '{print $2}')
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=ARCH \$DISK
+grub-mkconfig -o /boot/grub/grub.cfg
 
-if [ -z "$DISK" ]; then
-    DISK=$(lsblk -npo TYPE,NAME | grep -E "disk.*$(df / | tail -1 | awk '{print $1}' | sed 's|/dev/||' | sed 's|p[0-9]*$||' | sed 's|[0-9]*$||')" | awk '{print $2}')
-fi
-
-print_process "Installing GRUB to EFI..."
-if grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=ARCH $DISK; then
-    print_success "GRUB installed to EFI successfully"
-else
-    print_error "Failed to install GRUB to EFI"
-    exit 1
-fi
-
-print_process "Generating GRUB config..."
-if grub-mkconfig -o /boot/grub/grub.cfg; then
-    print_success "GRUB config generated successfully!"
-else
-    print_error "Failed to generate GRUB config"
-    exit 1
-fi
+print_success "GRUB installed successfully!"
 
 print_step "ENABLE NETWORKMANAGER"
 
-print_process "Enabling NetworkManager..."
-if systemctl enable NetworkManager; then
-    print_success "NetworkManager enabled successfully!"
-else
-    print_error "Failed to enable NetworkManager"
-    exit 1
-fi
+systemctl enable NetworkManager
+print_success "NetworkManager enabled successfully!"
 
 print_step "CONFIGURATION COMPLETED!"
 echo ""
 print_success "All configuration completed successfully!"
-echo ""
-print_info "Next steps:"
-echo "  1. Type 'exit' to leave chroot"
-echo "  2. Type 'umount -R /mnt' to unmount"
-echo "  3. Type 'reboot' to restart"
 echo ""
 print_success "Congratulations! Arch Linux has been installed!"
 
@@ -821,17 +753,17 @@ EOF
     
     print_success "Configuration script created at /mnt/root/auto_config.sh"
     echo ""
-    print_info "Entering Arch-chroot..."
-    print_arrow "Inside chroot, run: /root/auto_config.sh"
-    print_arrow "To exit chroot, type: exit"
+    print_info "Entering Arch-chroot and running configuration automatically..."
     echo ""
-    read -p "Press Enter to enter chroot..."
+    read -p "Press Enter to continue..."
     
-    arch-chroot /mnt
+    arch-chroot /mnt /bin/bash /root/auto_config.sh
     
     clear
-    print_step "EXITED CHROOT"
-    print_success "You have exited chroot"
+    print_step "CHROOT CONFIGURATION COMPLETED"
+    print_success "All configuration inside chroot has been completed!"
+    echo ""
+    read -p "Press Enter to continue..."
     
     print_process "Unmounting all partitions..."
     if umount -R /mnt 2>/dev/null; then
@@ -848,7 +780,8 @@ EOF
     print_info "Next steps:"
     echo "  1. Type 'reboot' to restart"
     echo "  2. Remove the USB installer"
-    echo "  3. Login with the user you created"
+    echo "  3. Login with your username: $USERNAME"
+    echo "  4. Use the password you set for this user"
     echo ""
 }
 
@@ -869,17 +802,28 @@ main() {
     
     print_header
     print_info "This script will automatically install Arch Linux"
-    print_info "Make sure you are ready with your desired configuration"
+    print_info "All configurations will be done automatically"
+    print_info "You will be prompted for:"
+    echo "  1. Hostname"
+    echo "  2. Timezone"
+    echo "  3. Username"
+    echo "  4. Root password"
+    echo "  5. User password"
     echo ""
     read -p "Press Enter to continue..."
     
     input_hostname
+    menu_timezone
+    input_user_info
+    input_passwords
+    
     select_disk
     menu_partition
     format_partitions
     mount_partitions
     install_base
     generate_fstab
+    
     configure_chroot
     
     print_success "Installation process completed!"
