@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# ============================================
+# AUTO ARCH LINUX INSTALLER - PROFESSIONAL
+# ============================================
+
 # Symbols for display
 CHECKMARK="[+]"
 PROCESS="[*]"
@@ -28,6 +33,10 @@ SWAP_SIZE=""
 USERNAME=""
 ROOT_PASS=""
 USER_PASS=""
+
+# ============================================
+# DISPLAY FUNCTIONS
+# ============================================
 
 print_success() {
     echo -e "${GREEN}${CHECKMARK}${NC} $1"
@@ -65,9 +74,13 @@ print_header() {
     echo "  ██║  ██║██║  ██║╚██████╗██║  ██║"
     echo "  ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝"
     echo ""
-    echo -e "${WHITE}[+] AUTO ARCH LINUX INSTALLER v2.0${NC}"
+    echo -e "${WHITE}[+] AUTO ARCH LINUX INSTALLER${NC}"
     echo ""
 }
+
+# ============================================
+# PASSWORD INPUT FUNCTION (HIDDEN)
+# ============================================
 
 get_password() {
     local prompt="$1"
@@ -76,7 +89,7 @@ get_password() {
     
     while true; do
         echo -e "${YELLOW}${ARROW}${NC} $prompt"
-        read -s -p "> " password
+        read -s password
         echo ""
         
         if [ -z "$password" ]; then
@@ -85,7 +98,7 @@ get_password() {
         fi
         
         echo -e "${YELLOW}${ARROW}${NC} Confirm password:"
-        read -s -p "> " confirm
+        read -s confirm
         echo ""
         
         if [ "$password" != "$confirm" ]; then
@@ -99,6 +112,10 @@ get_password() {
     echo "$password"
 }
 
+# ============================================
+# TIMEZONE FUNCTIONS WITH TIMOR LESTE
+# ============================================
+
 select_timezone() {
     print_step "SELECT TIMEZONE"
     
@@ -107,13 +124,22 @@ select_timezone() {
     
     regions=()
     i=1
+    
+    echo "  [1] Timor Leste (Asia/Dili)"
+    regions+=("Timor_Leste")
+    ((i++))
+    
     for region in $(ls /usr/share/zoneinfo/ | grep -v "right\|posix\|zone.tab\|zone1970.tab" | sort); do
-        if [ -d "/usr/share/zoneinfo/$region" ]; then
+        if [ -d "/usr/share/zoneinfo/$region" ] && [ "$region" != "Asia" ]; then
             printf "  %3d) %s\n" $i "$region"
             regions+=("$region")
             ((i++))
         fi
     done
+    
+    printf "  %3d) %s (includes Timor Leste)\n" $i "Asia"
+    regions+=("Asia")
+    ((i++))
     
     echo ""
     print_arrow "Select region number [1-${#regions[@]}]: "
@@ -124,6 +150,14 @@ select_timezone() {
         REGION="Asia"
     else
         REGION="${regions[$((region_choice-1))]}"
+        if [ "$REGION" = "Timor_Leste" ]; then
+            print_success "Timor Leste selected!"
+            ZONE="Asia/Dili"
+            export ZONE
+            echo ""
+            read -p "Press Enter to continue..."
+            return
+        fi
         print_success "Region selected: $REGION"
     fi
     
@@ -137,8 +171,18 @@ select_timezone() {
     
     cities=()
     i=1
+    
+    if [ "$REGION" = "Asia" ]; then
+        echo "  [1] Dili (Timor Leste) - Recommended"
+        cities+=("Dili")
+        ((i++))
+    fi
+    
     for city in $(ls /usr/share/zoneinfo/$REGION/ | sort); do
         if [ -f "/usr/share/zoneinfo/$REGION/$city" ]; then
+            if [ "$REGION" = "Asia" ] && [ "$city" = "Dili" ]; then
+                continue
+            fi
             printf "  %3d) %s\n" $i "$city"
             cities+=("$city")
             ((i++))
@@ -157,8 +201,18 @@ select_timezone() {
             
             cities=()
             i=1
+            
+            if [[ "$keyword" =~ [Dd]ili ]] || [[ "$keyword" =~ [Tt]imor ]]; then
+                echo "  [1] Dili (Timor Leste)"
+                cities+=("Dili")
+                ((i++))
+            fi
+            
             for city in $(ls /usr/share/zoneinfo/$REGION/ | sort); do
                 if [ -f "/usr/share/zoneinfo/$REGION/$city" ] && [[ "$city" =~ "$keyword" ]]; then
+                    if [ "$REGION" = "Asia" ] && [ "$city" = "Dili" ]; then
+                        continue
+                    fi
                     printf "  %3d) %s\n" $i "$city"
                     cities+=("$city")
                     ((i++))
@@ -169,8 +223,16 @@ select_timezone() {
                 print_error "Not found! Showing all cities..."
                 cities=()
                 i=1
+                if [ "$REGION" = "Asia" ]; then
+                    echo "  [1] Dili (Timor Leste)"
+                    cities+=("Dili")
+                    ((i++))
+                fi
                 for city in $(ls /usr/share/zoneinfo/$REGION/ | sort); do
                     if [ -f "/usr/share/zoneinfo/$REGION/$city" ]; then
+                        if [ "$REGION" = "Asia" ] && [ "$city" = "Dili" ]; then
+                            continue
+                        fi
                         printf "  %3d) %s\n" $i "$city"
                         cities+=("$city")
                         ((i++))
@@ -185,8 +247,8 @@ select_timezone() {
     read -p "> " city_choice
     
     if [[ ! "$city_choice" =~ ^[0-9]+$ ]] || [ "$city_choice" -lt 1 ] || [ "$city_choice" -gt "${#cities[@]}" ]; then
-        print_error "Invalid selection! Using default: Jakarta"
-        ZONE="$REGION/Jakarta"
+        print_error "Invalid selection! Using default: Dili (Timor Leste)"
+        ZONE="Asia/Dili"
     else
         ZONE="$REGION/${cities[$((city_choice-1))]}"
     fi
@@ -198,11 +260,19 @@ select_timezone() {
     export ZONE
 }
 
+# ============================================
+# MANUAL TIMEZONE FUNCTION
+# ============================================
+
 select_timezone_manual() {
     print_step "SELECT TIMEZONE (MANUAL)"
     echo ""
     print_info "Enter timezone manually"
-    print_info "Examples: Asia/Jakarta, Europe/London, America/New_York"
+    print_info "Examples:"
+    echo "  - Asia/Dili (Timor Leste)"
+    echo "  - Asia/Jakarta"
+    echo "  - Europe/London"
+    echo "  - America/New_York"
     echo ""
     print_arrow "Timezone: "
     read -p "> " ZONE_INPUT
@@ -211,8 +281,8 @@ select_timezone_manual() {
         ZONE="$ZONE_INPUT"
         print_success "Timezone selected: $ZONE"
     else
-        print_error "Invalid timezone! Using default: Asia/Jakarta"
-        ZONE="Asia/Jakarta"
+        print_error "Invalid timezone! Using default: Asia/Dili"
+        ZONE="Asia/Dili"
     fi
     
     echo ""
@@ -220,10 +290,14 @@ select_timezone_manual() {
     export ZONE
 }
 
+# ============================================
+# MAIN TIMEZONE MENU
+# ============================================
+
 menu_timezone() {
     print_step "SELECT TIMEZONE METHOD"
     echo ""
-    echo "  [1] Select from list (Region -> City)"
+    echo "  [1] Select from list (includes Timor Leste)"
     echo "  [2] Manual input"
     echo ""
     print_arrow "Choose method [1-2]: "
@@ -238,6 +312,10 @@ menu_timezone() {
             ;;
     esac
 }
+
+# ============================================
+# HOSTNAME INPUT FUNCTION
+# ============================================
 
 input_hostname() {
     print_step "SET HOSTNAME"
@@ -267,6 +345,10 @@ input_hostname() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# USER INPUT FUNCTIONS
+# ============================================
+
 input_user_info() {
     print_step "CREATE USER ACCOUNT"
     echo ""
@@ -292,18 +374,56 @@ input_user_info() {
     
     export USERNAME
     echo ""
+    read -p "Press Enter to continue..."
 }
 
 input_passwords() {
     print_step "SET PASSWORDS"
     echo ""
-    print_info "Enter password for ROOT user"
-    ROOT_PASS=$(get_password "Enter root password:")
+    
+    echo -e "${YELLOW}${ARROW}${NC} Enter root password:"
+    read -s ROOT_PASS
+    echo ""
+    
+    echo -e "${YELLOW}${ARROW}${NC} Confirm root password:"
+    read -s ROOT_PASS_CONFIRM
+    echo ""
+    
+    if [ "$ROOT_PASS" != "$ROOT_PASS_CONFIRM" ]; then
+        print_error "Root passwords do not match!"
+        input_passwords
+        return
+    fi
+    
+    if [ -z "$ROOT_PASS" ]; then
+        print_error "Root password cannot be empty!"
+        input_passwords
+        return
+    fi
+    
     print_success "Root password set successfully!"
     echo ""
     
-    print_info "Enter password for user: $USERNAME"
-    USER_PASS=$(get_password "Enter password for $USERNAME:")
+    echo -e "${YELLOW}${ARROW}${NC} Enter password for user $USERNAME:"
+    read -s USER_PASS
+    echo ""
+    
+    echo -e "${YELLOW}${ARROW}${NC} Confirm password for user $USERNAME:"
+    read -s USER_PASS_CONFIRM
+    echo ""
+    
+    if [ "$USER_PASS" != "$USER_PASS_CONFIRM" ]; then
+        print_error "User passwords do not match!"
+        input_passwords
+        return
+    fi
+    
+    if [ -z "$USER_PASS" ]; then
+        print_error "User password cannot be empty!"
+        input_passwords
+        return
+    fi
+    
     print_success "User password set successfully!"
     echo ""
     
@@ -312,12 +432,20 @@ input_passwords() {
     export ROOT_PASS USER_PASS
 }
 
+# ============================================
+# DISPLAY DISKS FUNCTION
+# ============================================
+
 show_disks() {
     print_step "AVAILABLE DISKS"
     echo ""
     lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL | grep -E "disk|part" | grep -v "loop"
     echo ""
 }
+
+# ============================================
+# SELECT DISK FUNCTION
+# ============================================
 
 select_disk() {
     while true; do
@@ -341,6 +469,10 @@ select_disk() {
         fi
     done
 }
+
+# ============================================
+# AUTOMATIC PARTITIONING WITH parted
+# ============================================
 
 auto_partition() {
     print_step "AUTOMATIC PARTITIONING"
@@ -423,6 +555,10 @@ auto_partition() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# MANUAL PARTITIONING WITH CFDISK
+# ============================================
+
 manual_partition() {
     print_step "MANUAL PARTITIONING WITH CFDISK"
     echo ""
@@ -480,6 +616,10 @@ manual_partition() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# MAIN PARTITION MENU
+# ============================================
+
 menu_partition() {
     print_step "SELECT PARTITION METHOD"
     echo ""
@@ -504,6 +644,10 @@ menu_partition() {
             ;;
     esac
 }
+
+# ============================================
+# FORMAT PARTITIONS FUNCTION
+# ============================================
 
 format_partitions() {
     print_step "FORMATTING PARTITIONS"
@@ -537,6 +681,10 @@ format_partitions() {
     echo ""
     read -p "Press Enter to continue..."
 }
+
+# ============================================
+# MOUNT PARTITIONS FUNCTION
+# ============================================
 
 mount_partitions() {
     print_step "MOUNTING PARTITIONS"
@@ -577,6 +725,10 @@ mount_partitions() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# INSTALL BASE SYSTEM FUNCTION
+# ============================================
+
 install_base() {
     print_step "INSTALLING BASE SYSTEM"
     
@@ -595,6 +747,9 @@ install_base() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# GENERATE FSTAB FUNCTION
+# ============================================
 
 generate_fstab() {
     print_step "GENERATING FSTAB"
@@ -616,13 +771,20 @@ generate_fstab() {
     read -p "Press Enter to continue..."
 }
 
+# ============================================
+# CHROOT CONFIGURATION FUNCTION (FULLY AUTOMATIC - FIXED)
+# ============================================
 
 configure_chroot() {
     print_step "CONFIGURING INSIDE CHROOT"
     
-    cat > /mnt/root/auto_config.sh << EOF
+    # Create configuration script that will be run automatically
+    cat > /mnt/root/auto_config.sh << 'EOF'
 #!/bin/bash
 
+# ============================================
+# AUTO CONFIGURATION SCRIPT (FULLY AUTOMATIC)
+# ============================================
 
 CHECKMARK="[+]"
 PROCESS="[*]"
@@ -639,35 +801,41 @@ WHITE='\033[1;37m'
 NC='\033[0m'
 
 print_success() {
-    echo -e "\${GREEN}\${CHECKMARK}\${NC} \$1"
+    echo -e "${GREEN}${CHECKMARK}${NC} $1"
 }
 
 print_process() {
-    echo -e "\${BLUE}\${PROCESS}\${NC} \$1"
+    echo -e "${BLUE}${PROCESS}${NC} $1"
 }
 
 print_error() {
-    echo -e "\${RED}\${CROSS}\${NC} \$1"
+    echo -e "${RED}${CROSS}${NC} $1"
 }
 
 print_info() {
-    echo -e "\${CYAN}\${INFO}\${NC} \$1"
+    echo -e "${CYAN}${INFO}${NC} $1"
 }
 
 print_step() {
     echo ""
-    echo -e "\${WHITE}\${CHECKMARK} \$1\${NC}"
+    echo -e "${WHITE}${CHECKMARK} $1${NC}"
     echo ""
 }
 
+# ============================================
+# STEP 1: SET TIMEZONE (AUTOMATIC)
+# ============================================
 print_step "SET TIMEZONE"
 
 ZONE="$ZONE"
-print_process "Setting timezone to: \$ZONE"
-ln -sf /usr/share/zoneinfo/\$ZONE /etc/localtime
+print_process "Setting timezone to: $ZONE"
+ln -sf /usr/share/zoneinfo/$ZONE /etc/localtime
 hwclock --systohc
 print_success "Timezone set successfully!"
 
+# ============================================
+# STEP 2: SET LOCALE
+# ============================================
 print_step "SET LOCALE"
 
 print_process "Setting locale..."
@@ -680,65 +848,106 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 print_success "Locale configured successfully!"
 
+# ============================================
+# STEP 3: SET HOSTNAME
+# ============================================
 print_step "SET HOSTNAME"
 
 HOSTNAME="$HOSTNAME"
-echo "\$HOSTNAME" > /etc/hostname
-print_success "Hostname: \$HOSTNAME"
+echo "$HOSTNAME" > /etc/hostname
+print_success "Hostname: $HOSTNAME"
 
+# ============================================
+# STEP 4: SET HOSTS
+# ============================================
 print_step "SET HOSTS"
 
 cat > /etc/hosts << HOSTS_EOF
 127.0.0.1   localhost
 ::1         localhost
-127.0.1.1   \$HOSTNAME.localdomain  \$HOSTNAME
+127.0.1.1   $HOSTNAME.localdomain  $HOSTNAME
 HOSTS_EOF
 
 print_success "Hosts configured successfully!"
 
+# ============================================
+# STEP 5: SET ROOT PASSWORD (FIXED)
+# ============================================
 print_step "SET ROOT PASSWORD"
 
-ROOT_PASS="$ROOT_PASS"
-echo "root:\$ROOT_PASS" | chpasswd
-print_success "Root password set successfully!"
+print_process "Setting root password..."
+printf "%s\n%s\n" "$ROOT_PASS" "$ROOT_PASS" | passwd root
+if [ $? -eq 0 ]; then
+    print_success "Root password set successfully!"
+else
+    print_error "Failed to set root password!"
+    passwd root
+fi
 
+# ============================================
+# STEP 6: CREATE USER (FIXED)
+# ============================================
 print_step "CREATE NEW USER"
 
 USERNAME="$USERNAME"
-print_process "Creating user: \$USERNAME"
+print_process "Creating user: $USERNAME"
 
-useradd -m -G wheel -s /bin/bash \$USERNAME
-print_success "User \$USERNAME created successfully!"
+useradd -m -G wheel -s /bin/bash $USERNAME
+if [ $? -eq 0 ]; then
+    print_success "User $USERNAME created successfully!"
+else
+    print_error "Failed to create user"
+    exit 1
+fi
 
-USER_PASS="$USER_PASS"
-echo "\$USERNAME:\$USER_PASS" | chpasswd
-print_success "User password set successfully!"
+print_process "Setting password for user $USERNAME..."
+printf "%s\n%s\n" "$USER_PASS" "$USER_PASS" | passwd $USERNAME
+if [ $? -eq 0 ]; then
+    print_success "User password set successfully!"
+else
+    print_error "Failed to set user password!"
+    passwd $USERNAME
+fi
 
+# ============================================
+# STEP 7: SETUP SUDO
+# ============================================
 print_step "SETUP SUDO"
 
 echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/wheel
 print_success "Wheel group enabled in sudoers!"
 
+# ============================================
+# STEP 8: INSTALL BOOTLOADER
+# ============================================
 print_step "INSTALL BOOTLOADER GRUB"
 
+print_process "Installing GRUB and efibootmgr..."
 pacman -S --noconfirm grub efibootmgr
 
-DISK=\$(lsblk -npo TYPE,NAME | grep -E "disk.*\$(df /boot | tail -1 | awk '{print \$1}' | sed 's|/dev/||' | sed 's|p[0-9]*\$||' | sed 's|[0-9]*\$||')" | awk '{print \$2}')
+DISK=$(lsblk -npo TYPE,NAME | grep -E "disk.*$(df /boot | tail -1 | awk '{print $1}' | sed 's|/dev/||' | sed 's|p[0-9]*$||' | sed 's|[0-9]*$||')" | awk '{print $2}')
 
-if [ -z "\$DISK" ]; then
-    DISK=\$(lsblk -npo TYPE,NAME | grep -E "disk.*\$(df / | tail -1 | awk '{print \$1}' | sed 's|/dev/||' | sed 's|p[0-9]*\$||' | sed 's|[0-9]*\$||')" | awk '{print \$2}')
+if [ -z "$DISK" ]; then
+    DISK=$(lsblk -npo TYPE,NAME | grep -E "disk.*$(df / | tail -1 | awk '{print $1}' | sed 's|/dev/||' | sed 's|p[0-9]*$||' | sed 's|[0-9]*$||')" | awk '{print $2}')
 fi
 
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=ARCH \$DISK
+print_process "Installing GRUB to EFI..."
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=ARCH $DISK
 grub-mkconfig -o /boot/grub/grub.cfg
 
 print_success "GRUB installed successfully!"
 
+# ============================================
+# STEP 9: ENABLE NETWORKMANAGER
+# ============================================
 print_step "ENABLE NETWORKMANAGER"
 
 systemctl enable NetworkManager
 print_success "NetworkManager enabled successfully!"
 
+# ============================================
+# COMPLETED
+# ============================================
 print_step "CONFIGURATION COMPLETED!"
 echo ""
 print_success "All configuration completed successfully!"
@@ -755,8 +964,10 @@ EOF
     echo ""
     read -p "Press Enter to continue..."
     
+    # Run the configuration script inside chroot (FULLY AUTOMATIC)
     arch-chroot /mnt /bin/bash /root/auto_config.sh
     
+    # After chroot script completes
     clear
     print_step "CHROOT CONFIGURATION COMPLETED"
     print_success "All configuration inside chroot has been completed!"
@@ -783,6 +994,10 @@ EOF
     echo ""
 }
 
+# ============================================
+# MAIN SCRIPT
+# ============================================
+
 main() {
     if [ "$EUID" -ne 0 ]; then 
         print_error "Script must be run as root (sudo)!"
@@ -803,18 +1018,20 @@ main() {
     print_info "All configurations will be done automatically"
     print_info "You will be prompted for:"
     echo "  1. Hostname"
-    echo "  2. Timezone"
+    echo "  2. Timezone (including Timor Leste / Asia/Dili)"
     echo "  3. Username"
     echo "  4. Root password"
     echo "  5. User password"
     echo ""
     read -p "Press Enter to continue..."
     
+    # Input all user information FIRST
     input_hostname
     menu_timezone
     input_user_info
     input_passwords
     
+    # Then proceed with installation
     select_disk
     menu_partition
     format_partitions
@@ -822,6 +1039,7 @@ main() {
     install_base
     generate_fstab
     
+    # This will now run the configuration automatically inside chroot
     configure_chroot
     
     print_success "Installation process completed!"
